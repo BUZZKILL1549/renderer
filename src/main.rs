@@ -6,6 +6,7 @@ use minifb::{Key, MouseMode, Window, WindowOptions};
 fn main() {
     const WIDTH: usize = 1200;
     const HEIGHT: usize = 800;
+
     let mut framebuffer = Framebuffer::new(WIDTH, HEIGHT);
     let mut window = Window::new("Renderer", WIDTH, HEIGHT, WindowOptions::default())
         .unwrap_or_else(|e| panic!("{}", e));
@@ -13,6 +14,7 @@ fn main() {
     while window.is_open() && !window.is_key_down(Key::Escape) {
         framebuffer.clear(0x000000);
 
+        /*
         // Draw a triangle (vertices as f64 for precise calculations)
         let triangle = [(200.0, 150.0), (400.0, 450.0), (600.0, 150.0)];
         framebuffer.draw_triangle(
@@ -52,6 +54,60 @@ fn main() {
                         }
                     }
                 }
+            }
+        }
+        */
+
+        let cube_coords = vec![
+            (-100.0, -100.0, -100.0), // Vertex 0
+            (-100.0, -100.0, 100.0),  // Vertex 1
+            (100.0, -100.0, 100.0),   // Vertex 2
+            (100.0, -100.0, -100.0),  // Vertex 3
+            (-100.0, 100.0, -100.0),  // Vertex 4
+            (-100.0, 100.0, 100.0),   // Vertex 5
+            (100.0, 100.0, 100.0),    // Vertex 6
+            (100.0, 100.0, -100.0),   // Vertex 7
+        ];
+
+        // framebuffer.draw_cube(cube_coords, Colors::WHITE.as_u32());
+
+        if let Some((mouse_x, mouse_y)) = window.get_mouse_pos(MouseMode::Discard) {
+            let angle_x = (mouse_y / HEIGHT as f32) * std::f32::consts::PI * 2.0;
+            let angle_y = (mouse_x / WIDTH as f32) * std::f32::consts::PI * 2.0;
+
+            let rotated_vertices =
+                framebuffer.rotate_cube(&cube_coords.clone(), angle_x, angle_y, 0.0);
+
+            let projected_vertices: Vec<(isize, isize)> = rotated_vertices
+                .iter()
+                .map(|&(x, y, z)| framebuffer.project_3d_to_2d(x as isize, y as isize, z as isize))
+                .collect();
+
+            // Draw edges of the cube
+            let edges = vec![
+                (0, 1),
+                (1, 2),
+                (2, 3),
+                (3, 0), // Bottom face
+                (4, 5),
+                (5, 6),
+                (6, 7),
+                (7, 4), // Top face
+                (0, 4),
+                (1, 5),
+                (2, 6),
+                (3, 7), // Connecting edges
+            ];
+            for &(start, end) in &edges {
+                let (x0, y0) = projected_vertices[start];
+                let (x1, y1) = projected_vertices[end];
+                framebuffer.draw_line(
+                    x0 as f64,
+                    y0 as f64,
+                    x1 as f64,
+                    y1 as f64,
+                    Colors::WHITE.as_u32(),
+                );
             }
         }
 

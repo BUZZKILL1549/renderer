@@ -94,6 +94,115 @@ impl Framebuffer {
 
         closest_intersection
     }
+
+    pub fn project_3d_to_2d(&self, x: isize, y: isize, z: isize) -> (isize, isize) {
+        // Define constants for perspective projection
+        let fov = 500.0; // Field of view (adjustable)
+        let viewer_distance = 400.0; // Distance from the viewer to the object
+
+        // Convert coordinates to f64 for precise calculations
+        let x = x as f64;
+        let y = y as f64;
+        let z = z as f64;
+
+        // Perspective projection formula
+        let projected_x = (x * fov) / (z + viewer_distance);
+        let projected_y = (y * fov) / (z + viewer_distance);
+
+        // Convert back to isize for pixel coordinates
+        (
+            (projected_x + self.width as f64 / 2.0).round() as isize,
+            (projected_y + self.height as f64 / 2.0).round() as isize,
+        )
+    }
+    pub fn draw_cube(&mut self, vertices: Vec<(isize, isize, isize)>, color: u32) {
+        let mut flattened_vector: Vec<(isize, isize)> = Vec::new();
+
+        // Flatten the 3D vertices to 2D
+        for vertex in vertices {
+            let projected = self.project_3d_to_2d(vertex.0, vertex.1, vertex.2);
+            flattened_vector.push(projected);
+        }
+
+        // List of edges of the cube based on vertex indices
+        let edges = vec![
+            (0, 1),
+            (1, 2),
+            (2, 3),
+            (3, 0), // Bottom face
+            (4, 5),
+            (5, 6),
+            (6, 7),
+            (7, 4), // Top face
+            (0, 4),
+            (1, 5),
+            (2, 6),
+            (3, 7), // Connecting edges
+        ];
+
+        // Debug print to check if the vertices are projected correctly
+        println!("Flattened vertices:");
+        for (x, y) in &flattened_vector {
+            println!("({}, {})", x, y);
+        }
+
+        // Draw the edges
+        for (v0, v1) in &edges {
+            let (x0, y0) = flattened_vector[*v0];
+            let (x1, y1) = flattened_vector[*v1];
+
+            // Debugging: check if the coordinates are valid
+            println!("Drawing line from ({}, {}) to ({}, {})", x0, y0, x1, y1);
+
+            self.draw_line(x0 as f64, y0 as f64, x1 as f64, y1 as f64, color);
+        }
+    }
+
+    pub fn rotate_cube(
+        &self,
+        vertices: &[(f32, f32, f32)],
+        angle_x: f32,
+        angle_y: f32,
+        angle_z: f32,
+    ) -> Vec<(f32, f32, f32)> {
+        let num_vertices = vertices.len() as f32;
+        let center = vertices.iter().fold((0.0, 0.0, 0.0), |acc, &(x, y, z)| {
+            (acc.0 + x, acc.1 + y, acc.2 + z)
+        });
+
+        let center = (
+            center.0 / num_vertices,
+            center.1 / num_vertices,
+            center.2 / num_vertices,
+        );
+
+        let cos_x = angle_x.cos();
+        let sin_x = angle_x.sin();
+        let cos_y = angle_y.cos();
+        let sin_y = angle_y.sin();
+        let cos_z = angle_z.cos();
+        let sin_z = angle_z.sin();
+
+        vertices
+            .iter()
+            .map(|&(x, y, z)| {
+                // Translate to the origin
+                let (x, y, z) = (x - center.0, y - center.1, z - center.2);
+
+                // Apply rotation around the X-axis
+                let (y, z) = (y * cos_x - z * sin_x, y * sin_x + z * cos_x);
+
+                // Apply rotation around the Y-axis
+                let (x, z) = (x * cos_y + z * sin_y, -x * sin_y + z * cos_y);
+
+                // Apply rotation around the Z-axis
+                let (x, y) = (x * cos_z - y * sin_z, x * sin_z + y * cos_z);
+
+                // Translate back to the original position
+                (x + center.0, y + center.1, z + center.2)
+            })
+            .collect()
+    }
 }
 
 pub struct Colors {
@@ -104,6 +213,7 @@ impl Colors {
     pub const RED: Colors = Colors { value: 0xFF0000 };
     pub const GREEN: Colors = Colors { value: 0x00FF00 };
     pub const BLUE: Colors = Colors { value: 0x0000FF };
+    pub const WHITE: Colors = Colors { value: 0xFFFFFF };
 
     pub fn as_u32(&self) -> u32 {
         self.value
