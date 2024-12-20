@@ -203,6 +203,141 @@ impl Framebuffer {
             })
             .collect()
     }
+
+    pub fn draw_filled_cube(
+        &mut self,
+        vertices: Vec<(f32, f32, f32)>,
+        angle_x: f32,
+        angle_y: f32,
+        angle_z: f32,
+        color: u32,
+    ) {
+        // Rotate the vertices of the cube
+        let rotated_vertices = self.rotate_cube(&vertices, angle_x, angle_y, angle_z);
+
+        // Project each rotated vertex to 2D
+        let projected_vertices: Vec<(isize, isize)> = rotated_vertices
+            .iter()
+            .map(|&(x, y, z)| self.project_3d_to_2d(x as isize, y as isize, z as isize))
+            .collect();
+
+        // Define cube faces as triangles (two triangles per face)
+        let faces = vec![
+            (0, 1, 2),
+            (0, 2, 3), // Bottom face
+            (4, 5, 6),
+            (4, 6, 7), // Top face
+            (0, 1, 5),
+            (0, 5, 4), // Front face
+            (1, 2, 6),
+            (1, 6, 5), // Right face
+            (2, 3, 7),
+            (2, 7, 6), // Back face
+            (3, 0, 4),
+            (3, 4, 7), // Left face
+        ];
+
+        // Fill each triangle in each face
+        for &(i1, i2, i3) in &faces {
+            let v1 = projected_vertices[i1];
+            let v2 = projected_vertices[i2];
+            let v3 = projected_vertices[i3];
+            self.fill_triangle(v1, v2, v3, color);
+        }
+    }
+
+    pub fn draw_scanline(&mut self, y: isize, x_start: f32, x_end: f32, color: u32) {
+        let x_start = x_start as isize;
+        let x_end = x_end as isize;
+        if y >= 0 && y < self.height as isize {
+            let (x_start, x_end) = if x_start < x_end {
+                (x_start, x_end)
+            } else {
+                (x_end, x_start)
+            };
+            for x in x_start.max(0)..=x_end.min(self.width as isize - 1) {
+                self.set_pixel(x as isize, y as isize, color);
+            }
+        }
+    }
+
+    pub fn fill_triangle(
+        &mut self,
+        v0: (isize, isize),
+        v1: (isize, isize),
+        v2: (isize, isize),
+        color: u32,
+    ) {
+        // Sort vertices by y-coordinate, so v0 is the top, v2 is the bottom
+        let mut vertices = [v0, v1, v2];
+        vertices.sort_by(|a, b| a.1.cmp(&b.1));
+        let (v0, v1, v2) = (vertices[0], vertices[1], vertices[2]);
+
+        // Calculate slopes for edges
+        let slope_0_1 = if v1.1 != v0.1 {
+            (v1.0 - v0.0) as f32 / (v1.1 - v0.1) as f32
+        } else {
+            0.0
+        };
+        let slope_0_2 = if v2.1 != v0.1 {
+            (v2.0 - v0.0) as f32 / (v2.1 - v0.1) as f32
+        } else {
+            0.0
+        };
+        let slope_1_2 = if v2.1 != v1.1 {
+            (v2.0 - v1.0) as f32 / (v2.1 - v1.1) as f32
+        } else {
+            0.0
+        };
+
+        // Draw upper part of the triangle (from v0 to v1)
+        let mut x_start = v0.0 as f32;
+        let mut x_end = x_start;
+        for y in v0.1..=v1.1 {
+            self.draw_scanline(y, x_start, x_end, color);
+            x_start += slope_0_1;
+            x_end += slope_0_2;
+        }
+
+        // Draw lower part of the triangle (from v1 to v2)
+        x_start = v1.0 as f32;
+        for y in v1.1..=v2.1 {
+            self.draw_scanline(y, x_start, x_end, color);
+            x_start += slope_1_2;
+            x_end += slope_0_2;
+        }
+    }
+
+    pub fn calculate_normal(
+        v0: (f32, f32, f32),
+        v1: (f32, f32, f32),
+        v2: (f32, f32, f32),
+    ) -> (f32, f32, f32) {
+        let (x1, y1, z1) = (v1.0 - v0.0, v1.1 - v0.1, v1.2 - v0.2);
+        let (x2, y2, z2) = (v2.0 - v0.0, v2.1 - v0.1, v2.2 - v0.2);
+        let nx = y1 * z2 - z1 * y2;
+        let ny = z1 * x2 - x1 * z2;
+        let nz = x1 * y2 - y1 * x2;
+        let length = (nx * nx + ny * ny + nz * nz).sqrt();
+        (nx / length, ny / length, nz / length)
+    }
+
+    pub fn calculate_brightness(normal: (f32, f32, f32), light_direction: (f32, f32, f32)) -> f32 {
+        let dot_product = normal.0 * light_direction.0
+            + normal.1 * light_direction.1
+            + normal.2 * light_direction.2;
+        dot_product.max(0.0) // Ensure brightness is non-negative
+    }
+
+    pub fn apply_brightness_to_color(color: u32, brightness: f64) -> u32 {
+        let r = ((color >> 16) & 0xFF) as f64 * brightness;
+        let g = ((color >> 8) & 0xFF) as f64 * brightness;
+        let b = (color & 0xFF) as f64 * brightness;
+        let r = r.min(255.0).max(0.0) as u32;
+        let g = g.min(255.0).max(0.0) as u32;
+        let b = b.min(255.0).max(0.0) as u32;
+        (r << 16) | (g << 8) | b
+    }
 }
 
 pub struct Colors {

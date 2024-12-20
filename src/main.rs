@@ -6,6 +6,7 @@ use minifb::{Key, MouseMode, Window, WindowOptions};
 fn main() {
     const WIDTH: usize = 1200;
     const HEIGHT: usize = 800;
+    const LIGHT_DIRECTION: (f64, f64, f64) = (0.0, 1.0, -1.0);
 
     let mut framebuffer = Framebuffer::new(WIDTH, HEIGHT);
     let mut window = Window::new("Renderer", WIDTH, HEIGHT, WindowOptions::default())
@@ -75,6 +76,15 @@ fn main() {
             let angle_x = (mouse_y / HEIGHT as f32) * std::f32::consts::PI * 2.0;
             let angle_y = (mouse_x / WIDTH as f32) * std::f32::consts::PI * 2.0;
 
+            framebuffer.draw_filled_cube(
+                cube_coords.clone(),
+                angle_x,
+                angle_y,
+                0.0,
+                Colors::WHITE.as_u32() + Colors::GREEN.as_u32(),
+            );
+
+            /*
             let rotated_vertices =
                 framebuffer.rotate_cube(&cube_coords.clone(), angle_x, angle_y, 0.0);
 
@@ -109,6 +119,7 @@ fn main() {
                     Colors::WHITE.as_u32(),
                 );
             }
+            */
         }
 
         // Update the window with the framebuffer
