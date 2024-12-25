@@ -204,24 +204,26 @@ impl Framebuffer {
             .collect()
     }
 
-    pub fn draw_filled_cube(
+    pub fn draw_filled_cube_with_lighting(
         &mut self,
         vertices: Vec<(f32, f32, f32)>,
         angle_x: f32,
         angle_y: f32,
         angle_z: f32,
-        color: u32,
+        base_color: u32,
+        light_dir: (f32, f32, f32),
+        edge_color: u32,
     ) {
-        // Rotate the vertices of the cube
+        // Rotate vertices
         let rotated_vertices = self.rotate_cube(&vertices, angle_x, angle_y, angle_z);
 
-        // Project each rotated vertex to 2D
+        // Project vertices
         let projected_vertices: Vec<(isize, isize)> = rotated_vertices
             .iter()
             .map(|&(x, y, z)| self.project_3d_to_2d(x as isize, y as isize, z as isize))
             .collect();
 
-        // Define cube faces as triangles (two triangles per face)
+        // Define cube faces as triangles
         let faces = vec![
             (0, 1, 2),
             (0, 2, 3), // Bottom face
@@ -237,12 +239,50 @@ impl Framebuffer {
             (3, 4, 7), // Left face
         ];
 
-        // Fill each triangle in each face
         for &(i1, i2, i3) in &faces {
-            let v1 = projected_vertices[i1];
-            let v2 = projected_vertices[i2];
-            let v3 = projected_vertices[i3];
-            self.fill_triangle(v1, v2, v3, color);
+            let v1 = rotated_vertices[i1];
+            let v2 = rotated_vertices[i2];
+            let v3 = rotated_vertices[i3];
+
+            // Calculate normal
+            let normal = Framebuffer::calculate_normal(v1, v2, v3);
+
+            // Calculate brightness
+            let brightness = Framebuffer::calculate_brightness(normal, light_dir);
+
+            // Shade color
+            let shaded_color =
+                Framebuffer::apply_brightness_to_color(base_color, brightness as f64);
+
+            // Projected vertices for filling
+            let p1 = projected_vertices[i1];
+            let p2 = projected_vertices[i2];
+            let p3 = projected_vertices[i3];
+
+            // Fill the triangle
+            self.fill_triangle(p1, p2, p3, shaded_color);
+        }
+
+        // Highlight edges
+        let edges = vec![
+            (0, 1),
+            (1, 2),
+            (2, 3),
+            (3, 0), // Bottom face
+            (4, 5),
+            (5, 6),
+            (6, 7),
+            (7, 4), // Top face
+            (0, 4),
+            (1, 5),
+            (2, 6),
+            (3, 7), // Connecting edges
+        ];
+
+        for &(v0, v1) in &edges {
+            let (x0, y0) = projected_vertices[v0];
+            let (x1, y1) = projected_vertices[v1];
+            self.draw_line(x0 as f64, y0 as f64, x1 as f64, y1 as f64, edge_color);
         }
     }
 
